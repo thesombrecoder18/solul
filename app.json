@@ -25,6 +25,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "L'application accède à vos photos pour ajouter des images à vos articles.",
+          "cameraPermission": "L'application accède à votre caméra pour prendre des photos de vos articles."
+        }
+      ]
+    ]
   }
 }
