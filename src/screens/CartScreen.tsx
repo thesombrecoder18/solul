@@ -20,7 +20,8 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants';
 import { CartItem, Product, RootStackParamList } from '../types';
-import { cartService } from '../services';
+import { cartService, storageService } from '../services';
+import { productService } from '../services/productService';
 import { fakeProducts, fakeUsers } from '../data';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -35,25 +36,32 @@ export default function CartScreen() {
   const [purchasedItems, setPurchasedItems] = useState<CartItemFull[]>([]);
   const [confirmedItems, setConfirmedItems] = useState<Set<string>>(new Set());
 
+  // Résoudre un produit par ID : d'abord fakeProducts, sinon storageService
+  const resolveProduct = async (produitId: string): Promise<Product | null> => {
+    const fromFake = fakeProducts.find((p) => p.id === produitId);
+    if (fromFake) return fromFake;
+    // Chercher dans les produits stockés (publiés dynamiquement)
+    const allProducts = await productService.getAll();
+    return allProducts.find((p) => p.id === produitId) || null;
+  };
+
   const loadCart = async () => {
     const cart = await cartService.getCart();
-    const full: CartItemFull[] = cart
-      .map((ci) => {
-        const product = fakeProducts.find((p) => p.id === ci.produitId);
-        return product ? { ...ci, product } : null;
-      })
-      .filter(Boolean) as CartItemFull[];
-    setItems(full);
+    const fullPromises = cart.map(async (ci) => {
+      const product = await resolveProduct(ci.produitId);
+      return product ? { ...ci, product } : null;
+    });
+    const fullResults = await Promise.all(fullPromises);
+    setItems(fullResults.filter(Boolean) as CartItemFull[]);
 
     // Charger les articles achetés en attente de confirmation
     const purchased = await cartService.getPurchasedItems();
-    const purchasedFull: CartItemFull[] = purchased
-      .map((ci) => {
-        const product = fakeProducts.find((p) => p.id === ci.produitId);
-        return product ? { ...ci, product } : null;
-      })
-      .filter(Boolean) as CartItemFull[];
-    setPurchasedItems(purchasedFull);
+    const purchasedPromises = purchased.map(async (ci) => {
+      const product = await resolveProduct(ci.produitId);
+      return product ? { ...ci, product } : null;
+    });
+    const purchasedResults = await Promise.all(purchasedPromises);
+    setPurchasedItems(purchasedResults.filter(Boolean) as CartItemFull[]);
   };
 
   useFocusEffect(
@@ -155,10 +163,12 @@ export default function CartScreen() {
         renderItem={renderCartItem}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="bag-outline" size={60} color={Colors.disabled} />
-            <Text style={styles.emptyText}>Votre panier est vide</Text>
-          </View>
+          purchasedItems.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="bag-outline" size={60} color={Colors.disabled} />
+              <Text style={styles.emptyText}>Votre panier est vide</Text>
+            </View>
+          ) : null
         }
         ListFooterComponent={renderConfirmationSection}
       />
