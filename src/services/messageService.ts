@@ -23,6 +23,48 @@ export const messageService = {
   },
 
   /**
+   * Récupérer une conversation par ID (depuis storage)
+   */
+  getConversationById: async (conversationId: string): Promise<Conversation | null> => {
+    await messageService.init();
+    const convs = (await storageService.get<Conversation[]>(CONVERSATIONS_KEY)) || [];
+    return convs.find((c) => c.id === conversationId) || null;
+  },
+
+  /**
+   * Trouver (ou créer) une conversation entre deux utilisateurs.
+   * Optionnellement liée à un produit.
+   */
+  findOrCreateConversation: async (
+    userAId: string,
+    userBId: string,
+    produitId?: string
+  ): Promise<Conversation> => {
+    await messageService.init();
+    const convs = (await storageService.get<Conversation[]>(CONVERSATIONS_KEY)) || [];
+    const existing = convs.find((c) => {
+      const sameParticipants =
+        (c.participants[0] === userAId && c.participants[1] === userBId) ||
+        (c.participants[0] === userBId && c.participants[1] === userAId);
+      if (!sameParticipants) return false;
+      if (!produitId) return true;
+      return c.produitId === produitId;
+    });
+    if (existing) return existing;
+
+    const newConv: Conversation = {
+      id: `conv_${Date.now()}`,
+      participants: [userAId, userBId],
+      produitId,
+      dernierMessage: '',
+      dateDernierMessage: new Date().toISOString(),
+    };
+    convs.push(newConv);
+    await storageService.set(CONVERSATIONS_KEY, convs);
+    return newConv;
+  },
+
+  /**
    * Récupérer toutes les conversations triées par date décroissante
    */
   getConversations: async (): Promise<Conversation[]> => {

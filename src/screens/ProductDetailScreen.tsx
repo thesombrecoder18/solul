@@ -26,7 +26,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants';
 import { Product, RootStackParamList, Conversation } from '../types';
 import { fakeProducts, fakeUsers } from '../data';
-import { cartService, storageService } from '../services';
+import { cartService, messageService, favoritesService } from '../services';
 import { authService } from '../services/authService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -57,6 +57,10 @@ export default function ProductDetailScreen() {
         setVendeurNote(vendeur.note);
         setVendeurNbVentes(vendeur.nombreVentes);
       }
+      (async () => {
+        const fav = await favoritesService.isFavorite(p.id);
+        setIsFav(fav);
+      })();
     }
   }, [productId]);
 
@@ -115,24 +119,8 @@ export default function ProductDetailScreen() {
       Alert.alert('Info', 'Vous êtes le vendeur de cet article.');
       return;
     }
-    // Find or create conversation with this vendor
-    const convs = (await storageService.get<Conversation[]>('conversations')) || [];
-    let conv = convs.find(
-      (c) =>
-        (c.participants[0] === currentUser.id && c.participants[1] === product.vendeurId) ||
-        (c.participants[0] === product.vendeurId && c.participants[1] === currentUser.id)
-    );
-    if (!conv) {
-      conv = {
-        id: `conv_${Date.now()}`,
-        participants: [currentUser.id, product.vendeurId],
-        produitId: product.id,
-        dernierMessage: '',
-        dateDernierMessage: new Date().toISOString(),
-      };
-      convs.push(conv);
-      await storageService.set('conversations', convs);
-    }
+    // Find or create conversation with this vendor (source of truth: messageService/storage)
+    const conv = await messageService.findOrCreateConversation(currentUser.id, product.vendeurId, product.id);
     navigation.navigate('Chat', { conversationId: conv.id });
   };
 
@@ -164,7 +152,12 @@ export default function ProductDetailScreen() {
           {/* Vues + Favori */}
           <View style={styles.imageOverlay}>
             <Text style={styles.vuesText}>{product.vues}</Text>
-            <TouchableOpacity onPress={() => setIsFav(!isFav)}>
+            <TouchableOpacity
+              onPress={async () => {
+                const next = await favoritesService.toggle(product.id);
+                setIsFav(next.isFav);
+              }}
+            >
               <Ionicons
                 name={isFav ? 'heart' : 'heart-outline'}
                 size={22}

@@ -4,6 +4,7 @@
 
 import { storageService } from './storageService';
 import { Product, Categorie, Genre } from '../types';
+import { photoService } from './photoService';
 
 const PRODUCTS_KEY = 'products';
 
@@ -107,9 +108,14 @@ export const productService = {
    */
   remove: async (id: string): Promise<boolean> => {
     const products = await productService.getAll();
+    const toDelete = products.find((p) => p.id === id);
     const filtered = products.filter((p) => p.id !== id);
     if (filtered.length === products.length) return false;
     await storageService.set(PRODUCTS_KEY, filtered);
+    // Nettoyer les photos locales si l'article en possède
+    if (toDelete?.images?.length) {
+      await photoService.deleteManyIfManaged(toDelete.images);
+    }
     return true;
   },
 

@@ -22,6 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants';
 import { productService } from '../services/productService';
 import { authService } from '../services/authService';
+import { photoService } from '../services/photoService';
 import { Categorie, EtatProduit, Product } from '../types';
 
 const CATEGORIES: Categorie[] = ['Robes', 'Tuniques', 'Boubous', 'Tuxedos', 'Ensembles', 'Chaussures', 'Sacs', 'Accessoires'];
@@ -96,8 +97,8 @@ export default function SellScreen() {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      const newUris = result.assets.map((a) => a.uri);
-      setImages((prev) => [...prev, ...newUris].slice(0, MAX_IMAGES));
+      const copied = await Promise.all(result.assets.map((a) => photoService.persistImageUri(a.uri)));
+      setImages((prev) => [...prev, ...copied].slice(0, MAX_IMAGES));
     }
   };
 
@@ -122,13 +123,19 @@ export default function SellScreen() {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      setImages((prev) => [...prev, result.assets[0].uri].slice(0, MAX_IMAGES));
+      const copied = await photoService.persistImageUri(result.assets[0].uri);
+      setImages((prev) => [...prev, copied].slice(0, MAX_IMAGES));
     }
   };
 
   /** Supprimer une image */
   const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImages((prev) => {
+      const toRemove = prev[index];
+      // nettoyage fichier local si géré
+      photoService.deleteIfManaged(toRemove);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   /** Dialog pour choisir entre galerie et caméra */
@@ -157,6 +164,8 @@ export default function SellScreen() {
   };
 
   const resetForm = () => {
+    // supprimer les images locales sélectionnées (si l'utilisateur annule)
+    photoService.deleteManyIfManaged(images);
     setTitre('');
     setDescription('');
     setMatiere('');

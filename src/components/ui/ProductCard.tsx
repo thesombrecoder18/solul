@@ -3,11 +3,12 @@
  * Image + coeur favoris, titre, matière, prix
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../constants';
 import { Product } from '../../types';
+import { favoritesService } from '../../services';
 
 const CARD_WIDTH = (Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2;
 
@@ -18,6 +19,17 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, onPress }: ProductCardProps) {
   const [isFav, setIsFav] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const fav = await favoritesService.isFavorite(product.id);
+      if (mounted) setIsFav(fav);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [product.id]);
 
   // Extraire la matière de la description ou titre
   const getMatiere = (): string => {
@@ -39,7 +51,10 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
         <Image source={{ uri: product.images[0] }} style={styles.image} />
         <TouchableOpacity
           style={styles.favButton}
-          onPress={() => setIsFav(!isFav)}
+          onPress={async () => {
+            const next = await favoritesService.toggle(product.id);
+            setIsFav(next.isFav);
+          }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons

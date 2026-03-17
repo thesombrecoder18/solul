@@ -22,13 +22,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants';
-import { Message, RootStackParamList } from '../types';
-import { fakeConversations, fakeUsers } from '../data';
+import { Message, RootStackParamList, Conversation, User } from '../types';
+import { fakeUsers } from '../data';
 import { messageService } from '../services/messageService';
+import { authService } from '../services/authService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
-const CURRENT_USER_ID = 'user_1';
 
 export default function ChatScreen() {
   const navigation = useNavigation<Nav>();
@@ -39,26 +38,38 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
-  const conversation = fakeConversations.find((c) => c.id === conversationId);
-  const otherUserId = conversation?.participants.find((id) => id !== CURRENT_USER_ID) || '';
-  const otherUser = fakeUsers.find((u) => u.id === otherUserId);
+  const [currentUserId, setCurrentUserId] = useState<string>('user_1'); // fallback demo
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [otherUser, setOtherUser] = useState<User | null>(null);
+  const [otherUserId, setOtherUserId] = useState<string>('');
 
   useEffect(() => {
     loadMessages();
   }, [conversationId]);
 
   const loadMessages = async () => {
+    const cu = await authService.getCurrentUser();
+    const uid = cu?.id || 'user_1';
+    setCurrentUserId(uid);
+
+    const conv = await messageService.getConversationById(conversationId);
+    setConversation(conv);
+    const otherId = conv?.participants.find((id) => id !== uid) || '';
+    setOtherUserId(otherId);
+    setOtherUser(fakeUsers.find((u) => u.id === otherId) || null);
+
     const convMessages = await messageService.getMessages(conversationId);
     setMessages(convMessages);
     // Marquer comme lus
-    await messageService.markAsRead(conversationId, CURRENT_USER_ID);
+    await messageService.markAsRead(conversationId, uid);
   };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
+    if (!otherUserId) return;
     const newMsg = await messageService.sendMessage(
       conversationId,
-      CURRENT_USER_ID,
+      currentUserId,
       otherUserId,
       inputText.trim()
     );
@@ -73,7 +84,7 @@ export default function ChatScreen() {
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
-    const isMine = item.expediteurId === CURRENT_USER_ID;
+    const isMine = item.expediteurId === currentUserId;
     return (
       <View style={[styles.messageBubbleWrapper, isMine ? styles.myMessageWrapper : styles.otherMessageWrapper]}>
         <View style={[styles.messageBubble, isMine ? styles.myBubble : styles.otherBubble]}>

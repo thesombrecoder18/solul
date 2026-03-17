@@ -21,15 +21,15 @@ import { Colors, FontSize, Spacing, BorderRadius } from '../constants';
 import { Conversation, RootStackParamList } from '../types';
 import { fakeUsers } from '../data';
 import { messageService } from '../services/messageService';
+import { authService } from '../services/authService';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
-const CURRENT_USER_ID = 'user_1'; // Binta est l'utilisateur connecté par défaut
 
 export default function MessagesListScreen() {
   const navigation = useNavigation<Nav>();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [currentUserId, setCurrentUserId] = useState<string>('user_1'); // fallback demo
 
   useFocusEffect(
     useCallback(() => {
@@ -38,18 +38,24 @@ export default function MessagesListScreen() {
   );
 
   const loadConversations = async () => {
+    const cu = await authService.getCurrentUser();
+    const uid = cu?.id || 'user_1';
+    setCurrentUserId(uid);
+
     const convs = await messageService.getConversations();
-    setConversations(convs);
+    // Garder uniquement les conversations qui concernent l'utilisateur courant
+    const myConvs = convs.filter((c) => c.participants.includes(uid));
+    setConversations(myConvs);
     // Charger les compteurs de non-lus
     const counts: Record<string, number> = {};
-    for (const conv of convs) {
-      counts[conv.id] = await messageService.getUnreadCount(conv.id, CURRENT_USER_ID);
+    for (const conv of myConvs) {
+      counts[conv.id] = await messageService.getUnreadCount(conv.id, uid);
     }
     setUnreadCounts(counts);
   };
 
   const getOtherUser = (conv: Conversation) => {
-    const otherId = conv.participants.find((id) => id !== CURRENT_USER_ID) || conv.participants[0];
+    const otherId = conv.participants.find((id) => id !== currentUserId) || conv.participants[0];
     return fakeUsers.find((u) => u.id === otherId);
   };
 

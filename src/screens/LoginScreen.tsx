@@ -42,8 +42,10 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
     try {
       const user = await authService.login(email.trim(), motDePasse);
       if (user) {
-        // Navigation vers l'écran principal (à implémenter)
-        Alert.alert('Succès', `Bienvenue ${user.prenom} !`);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
       } else {
         Alert.alert('Erreur', 'Email ou mot de passe incorrect.');
       }

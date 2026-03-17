@@ -62,7 +62,8 @@ export default function PaymentScreen() {
     }
     // Simuler le paiement
     const commandeId = `#${Math.floor(1000000 + Math.random() * 9000000)}`;
-    await cartService.clearCart();
+    // IMPORTANT: ne pas vider le panier ici.
+    // Le transfert vers "achetés" se fait sur l'écran de confirmation afin d'éviter de perdre les items.
     navigation.navigate('OrderConfirmed', { commandeId, montant: total });
   };
 
